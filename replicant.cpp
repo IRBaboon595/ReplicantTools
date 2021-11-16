@@ -55,80 +55,134 @@ void replicant::sync()
     QDir        tempDir;
     QFileInfo   tempFileInfo;
     uint16_t    index = 0;
+    //uint16_t*   indexRemTemp;
+    //uint16_t*   indexAddTemp;
 
     timerSync->stop();
 
     QFileInfoList masterInfo = masterDir->entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries, QDir::Name);
     QFileInfoList slaveInfo = slaveDir->entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries, QDir::Name);
 
-    if(masterInfo.size() == slaveInfo.size())
-    {
-        qDebug() << "Entries quantity equal";
+    //indexRemTemp = new uint16_t(slaveInfo.size());
+    //indexAddTemp = new uint16_t(masterInfo.size());
 
-        for(int i = 0; i < masterInfo.size(); i++)
+    for(int i = 0; i < masterInfo.size(); i++)
+    {
+        if(slaveDir->exists(masterInfo.value(i).fileName()))
         {
-            if(slaveDir->exists(masterInfo.value(i).fileName()))
+            tempFileInfo.setFile(slaveDir->path() + '/' +masterInfo.value(i).fileName());
+            index = slaveInfo.indexOf(tempFileInfo);
+            qDebug() << masterInfo.value(i).fileName() << slaveInfo.value(index).fileName();
+            if(masterInfo.value(i).lastModified() == slaveInfo.value(index).lastModified())
             {
-                tempFileInfo.setFile(slaveDir->path() + '/' +masterInfo.value(i).fileName());
-                index = slaveInfo.indexOf(tempFileInfo);
-                qDebug() << masterInfo.value(i).fileName() << slaveInfo.value(index).fileName();
-                if(masterInfo.value(i).lastModified() == slaveInfo.value(index).lastModified())
+                qDebug() << "Entry " + masterInfo.value(i).fileName() + " is equal";
+            }
+            else
+            {
+                qDebug() << "Entry " + masterInfo.value(i).fileName() + " is an older version";
+                if(slaveInfo.value(index).isDir())
                 {
-                    qDebug() << "Entry " + masterInfo.value(i).fileName() + " is equal";
-                }
-                else
-                {
-                    qDebug() << "Entry " + masterInfo.value(i).fileName() + " is an older version";
-                    if(slaveInfo.value(index).isDir())
+                    tempDir.cd(slaveInfo.value(index).absoluteFilePath());
+                    if(tempDir.removeRecursively())
                     {
-                        tempDir.cd(slaveInfo.value(index).absoluteFilePath());
-                        if(tempDir.removeRecursively())
-                        {
-                            qDebug() << "Entry removed";
-                            slaveDir->mkdir(masterInfo.value(i).fileName());
-                            tempDirName = slaveDir->absolutePath() + masterInfo.value(i).fileName();
-                            tempDir.cd(tempDirName);
-                            copyPath(masterInfo.value(i).absoluteFilePath(), tempDir.absolutePath());
-                        }
-                        else
-                        {
-                            qDebug() << "Failed to remove entry";
-                        }
+                        qDebug() << "Entry removed";
+                        slaveDir->mkdir(masterInfo.value(i).fileName());
+                        tempDirName = slaveDir->absolutePath() + masterInfo.value(i).fileName();
+                        tempDir.cd(tempDirName);
+                        copyPath(masterInfo.value(i).absoluteFilePath(), tempDir.absolutePath());
                     }
-                    else if(slaveInfo.value(i).isFile())
+                    else
                     {
-                        if(slaveDir->remove(slaveInfo.value(i).fileName()))
+                        qDebug() << "Failed to remove entry";
+                    }
+                }
+                else if(slaveInfo.value(i).isFile())
+                {
+                    if(slaveDir->remove(slaveInfo.value(i).fileName()))
+                    {
+                        qDebug() << "Entry removed";
+                        if(QFile::copy(masterInfo.value(i).absoluteFilePath(), slaveDir->absolutePath() + '/' + masterInfo.value(i).fileName()))
                         {
-                            qDebug() << "Entry removed";
-                            if(QFile::copy(masterInfo.value(i).absoluteFilePath(), slaveDir->absolutePath() + '/' + masterInfo.value(i).fileName()))
-                            {
-                                qDebug() << "File " + masterInfo.value(i).fileName() + " copied";
-                            }
-                            else
-                            {
-                                qDebug() << "Failed to copy file " + masterInfo.value(i).fileName();
-                            }
+                            qDebug() << "File " + masterInfo.value(i).fileName() + " copied";
                         }
                         else
                         {
-                            qDebug() << "Failed to remove entry";
+                            qDebug() << "Failed to copy file " + masterInfo.value(i).fileName();
                         }
                     }
                     else
                     {
-                        qDebug() << "Unrecognized file";
+                        qDebug() << "Failed to remove entry";
                     }
+                }
+                else
+                {
+                    qDebug() << "Unrecognized file";
+                }
+            }
+        }
+        else
+        {
+            qDebug() << "Entry does not exist";
+            if(slaveInfo.value(index).isDir())
+            {
+                tempDir.cd(slaveInfo.value(index).absoluteFilePath());
+                slaveDir->mkdir(masterInfo.value(i).fileName());
+                tempDirName = slaveDir->absolutePath() + masterInfo.value(i).fileName();
+                tempDir.cd(tempDirName);
+                copyPath(masterInfo.value(i).absoluteFilePath(), tempDir.absolutePath());
+            }
+            else if(slaveInfo.value(i).isFile())
+            {
+                if(QFile::copy(masterInfo.value(i).absoluteFilePath(), slaveDir->absolutePath() + '/' + masterInfo.value(i).fileName()))
+                {
+                    qDebug() << "File " + masterInfo.value(i).fileName() + " copied";
+                }
+                else
+                {
+                    qDebug() << "Failed to copy file " + masterInfo.value(i).fileName();
                 }
             }
             else
             {
-                qDebug() << "Entry does not exist";
+                qDebug() << "Unrecognized file";
             }
         }
     }
-    else
+
+    for(int i = 0; i < slaveInfo.size(); i++)
     {
-        qDebug() << "Different entries quantity";
+        if(!masterDir->exists(slaveInfo.value(i).fileName()))
+        {
+            if(slaveInfo.value(index).isDir())
+            {
+                tempDir.cd(slaveInfo.value(index).absoluteFilePath());
+                if(tempDir.removeRecursively())
+                {
+                    qDebug() << "Entry removed";
+                }
+                else
+                {
+                    qDebug() << "Failed to remove entry";
+                }
+            }
+            else if(slaveInfo.value(i).isFile())
+            {
+                if(slaveDir->remove(slaveInfo.value(i).fileName()))
+                {
+                    qDebug() << "Entry removed";
+                }
+                else
+                {
+                    qDebug() << "Failed to remove entry";
+                }
+            }
+            else
+            {
+                qDebug() << "Unrecognized file";
+            }
+        }
     }
+
     timerSync->start(syncTime);
 }
