@@ -8,6 +8,9 @@
 #include <QString>
 #include <QFileInfo>
 #include <QTimer>
+#include <QCryptographicHash>
+#include <QByteArray>
+#include <FolderCompressor.h>
 
 class replicant : public QObject
 {
@@ -15,8 +18,10 @@ class replicant : public QObject
 public:
     explicit replicant(QObject *parent = nullptr);
 
-    void getArgs(QStringList list);
-    void copyPath(QString src, QString dst);
+    void        getArgs(QStringList list);
+    void        copyPath(QString src, QString dst);
+    QByteArray  getEntryHash(QFileInfo *fileInfo);
+    bool        compare(QFileInfo mInfo, QFileInfo sInfo);
 
 public slots:
     void sync();
